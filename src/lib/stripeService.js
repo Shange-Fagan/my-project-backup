@@ -55,11 +55,21 @@ export const PRICING_PLANS = {
   }
 }
 
+// Check if we're in development mode
+const isDevelopment = import.meta.env.DEV || window.location.hostname === 'localhost'
+
 // Create Stripe Checkout Session
 export const createCheckoutSession = async (priceId, userId, userEmail) => {
   try {
-    console.log('🔄 Creating checkout session...', { priceId, userId, userEmail })
+    console.log('🔄 Creating checkout session...', { priceId, userId, userEmail, isDevelopment })
     
+    // In development, use mock checkout or direct Stripe checkout
+    if (isDevelopment) {
+      console.log('🔧 Development mode detected - using direct Stripe checkout')
+      return await createDirectStripeCheckout(priceId, userId, userEmail)
+    }
+    
+    // Production: Use Netlify function
     // Add timeout to prevent hanging requests
     const controller = new AbortController()
     const timeoutId = setTimeout(() => controller.abort(), 30000) // 30 second timeout
@@ -141,11 +151,64 @@ export const createCheckoutSession = async (priceId, userId, userEmail) => {
   }
 }
 
+// Development checkout using local server
+const createDirectStripeCheckout = async (priceId, userId, userEmail) => {
+  try {
+    console.log('🔧 Development mode: Creating checkout via local server...')
+    
+    // Try to call a local development server endpoint
+    const response = await fetch('http://localhost:8888/.netlify/functions/create-checkout-session', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        priceId,
+        userId,
+        userEmail,
+        successUrl: `${window.location.origin}/dashboard?success=true`,
+        cancelUrl: `${window.location.origin}/billing?canceled=true`
+      })
+    })
+
+    if (response.ok) {
+      const session = await response.json()
+      console.log('✅ Local server checkout session created:', session.id)
+
+      const stripe = await stripePromise
+      const { error } = await stripe.redirectToCheckout({
+        sessionId: session.id
+      })
+
+      if (error) {
+        throw new Error(error.message)
+      }
+      return
+    }
+    
+    throw new Error('Local server not available')
+    
+  } catch (error) {
+    console.error('❌ Local server checkout failed:', error.message)
+    
+    // Fallback to enhanced mock for development
+    console.log('🔄 Falling back to enhanced mock checkout...')
+    return await mockCreateCheckoutSession(priceId, userId, userEmail)
+  }
+}
+
 // Create Customer Portal Session
 export const createCustomerPortalSession = async (customerId) => {
   try {
-    console.log('🔄 Creating customer portal session...', { customerId })
+    console.log('🔄 Creating customer portal session...', { customerId, isDevelopment })
     
+    // In development, use mock portal
+    if (isDevelopment) {
+      console.log('🔧 Development mode detected - using mock customer portal')
+      return await mockCreateCustomerPortalSession(customerId)
+    }
+    
+    // Production: Use Netlify function
     // Add timeout to prevent hanging requests
     const controller = new AbortController()
     const timeoutId = setTimeout(() => controller.abort(), 30000) // 30 second timeout
@@ -216,27 +279,68 @@ export const createCustomerPortalSession = async (customerId) => {
   }
 }
 
-// Mock functions for development (replace with actual API calls)
+// Enhanced mock functions for development
 export const mockCreateCheckoutSession = async (priceId, userId, userEmail) => {
   console.log('🔄 Mock Stripe Checkout:', { priceId, userId, userEmail })
   
-  // Simulate checkout flow
+  // Find the plan details for better mock experience
+  const plan = Object.values(PRICING_PLANS).find(p => p.priceId === priceId)
+  const planName = plan ? plan.name : 'Unknown Plan'
+  
+  // Simulate checkout flow with user interaction
   return new Promise((resolve) => {
+    const shouldProceed = confirm(
+      `🔧 DEVELOPMENT MODE\n\n` +
+      `Mock Stripe Checkout for: ${planName}\n` +
+      `Price: $${plan?.price || 'Unknown'}/month\n` +
+      `User: ${userEmail}\n\n` +
+      `Click OK to simulate successful payment\n` +
+      `Click Cancel to simulate payment failure`
+    )
+    
     setTimeout(() => {
-      console.log('✅ Mock checkout completed')
-      resolve({ success: true })
-    }, 1000)
+      if (shouldProceed) {
+        console.log('✅ Mock checkout completed successfully')
+        // Simulate successful checkout by redirecting to success page
+        window.location.href = `${window.location.origin}/dashboard?success=true&mock=true`
+        resolve({ success: true })
+      } else {
+        console.log('❌ Mock checkout cancelled')
+        // Simulate cancelled checkout
+        window.location.href = `${window.location.origin}/billing?canceled=true&mock=true`
+        resolve({ success: false, cancelled: true })
+      }
+    }, 500)
   })
 }
 
 export const mockCreateCustomerPortalSession = async (customerId) => {
   console.log('🔄 Mock Customer Portal:', { customerId })
   
-  // Simulate portal redirect
+  // Simulate portal with user interaction
   return new Promise((resolve) => {
+    const action = confirm(
+      `🔧 DEVELOPMENT MODE\n\n` +
+      `Mock Stripe Customer Portal\n` +
+      `Customer ID: ${customerId}\n\n` +
+      `This would normally open the Stripe billing portal where customers can:\n` +
+      `• View billing history\n` +
+      `• Update payment methods\n` +
+      `• Cancel subscriptions\n` +
+      `• Download invoices\n\n` +
+      `Click OK to simulate portal access\n` +
+      `Click Cancel to simulate access denied`
+    )
+    
     setTimeout(() => {
-      console.log('✅ Mock portal opened')
-      resolve({ success: true })
-    }, 1000)
+      if (action) {
+        console.log('✅ Mock portal access granted')
+        alert('🔧 Mock Portal: In production, this would redirect to Stripe\'s customer portal.')
+        resolve({ success: true })
+      } else {
+        console.log('❌ Mock portal access denied')
+        throw new Error('Portal access denied (mock)')
+      }
+    }, 500)
   })
 }
