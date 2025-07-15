@@ -1,12 +1,38 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useAuth } from '../contexts/AuthContext'
-import { signOut } from '../lib/supabase'
+import { signOut, getSubscription } from '../lib/supabase'
 import Button from '../components/Button'
-import { User, Mail, Calendar, Settings, Download, Trash2 } from 'lucide-react'
+import ProfileUpdateModal from '../components/ProfileUpdateModal'
+import PasswordChangeModal from '../components/PasswordChangeModal'
+import DeleteAccountModal from '../components/DeleteAccountModal'
+import { User, Mail, Calendar, Settings, Download, Trash2, CreditCard } from 'lucide-react'
 
 const Profile = () => {
   const { user } = useAuth()
   const [loading, setLoading] = useState(false)
+  const [showProfileModal, setShowProfileModal] = useState(false)
+  const [showPasswordModal, setShowPasswordModal] = useState(false)
+  const [showDeleteModal, setShowDeleteModal] = useState(false)
+  const [subscription, setSubscription] = useState(null)
+
+  useEffect(() => {
+    const loadSubscription = async () => {
+      if (!user) return
+      
+      try {
+        const { data, error } = await getSubscription(user.id)
+        if (error && error.code !== 'PGRST116') { // PGRST116 is "not found" error
+          console.error('Error loading subscription:', error)
+        } else {
+          setSubscription(data)
+        }
+      } catch (error) {
+        console.error('Error loading subscription:', error)
+      }
+    }
+
+    loadSubscription()
+  }, [user])
 
   const handleSignOut = async () => {
     setLoading(true)
@@ -34,17 +60,15 @@ const Profile = () => {
   }
 
   const handleDeleteAccount = () => {
-    if (window.confirm('Are you sure you want to delete your account? This action cannot be undone.')) {
-      alert('Account deletion would be implemented here with proper backend logic.')
-    }
+    setShowDeleteModal(true)
   }
 
   const handleUpdateProfile = () => {
-    alert('Profile update functionality would be implemented here.')
+    setShowProfileModal(true)
   }
 
   const handleChangePassword = () => {
-    alert('Password change functionality would be implemented here.')
+    setShowPasswordModal(true)
   }
 
   if (!user) return null
@@ -67,7 +91,7 @@ const Profile = () => {
 
         {/* Profile Information */}
         <div className="p-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
             <div className="bg-gray-50 p-4 rounded-lg">
               <div className="flex items-center mb-2">
                 <Mail className="w-5 h-5 text-gray-500 mr-2" />
@@ -101,6 +125,24 @@ const Profile = () => {
               </div>
               <p className="text-gray-900">
                 {user.last_sign_in_at ? new Date(user.last_sign_in_at).toLocaleDateString() : 'N/A'}
+              </p>
+            </div>
+
+            <div className="bg-gray-50 p-4 rounded-lg">
+              <div className="flex items-center mb-2">
+                <CreditCard className="w-5 h-5 text-gray-500 mr-2" />
+                <span className="text-sm font-medium text-gray-700">Subscription</span>
+              </div>
+              <p className="text-gray-900">
+                {subscription ? (
+                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                    {subscription.plan_name || 'Active'}
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                    No active plan
+                  </span>
+                )}
               </p>
             </div>
           </div>
@@ -167,6 +209,24 @@ const Profile = () => {
           </div>
         </div>
       </div>
+
+      {/* Modals */}
+      <ProfileUpdateModal 
+        isOpen={showProfileModal} 
+        onClose={() => setShowProfileModal(false)} 
+        user={user}
+      />
+      
+      <PasswordChangeModal 
+        isOpen={showPasswordModal} 
+        onClose={() => setShowPasswordModal(false)} 
+      />
+      
+      <DeleteAccountModal 
+        isOpen={showDeleteModal} 
+        onClose={() => setShowDeleteModal(false)} 
+        userEmail={user.email}
+      />
     </div>
   )
 }
