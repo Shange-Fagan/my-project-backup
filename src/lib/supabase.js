@@ -327,3 +327,104 @@ export const getUserStripeCustomerId = async (userId) => {
     .single()
   return { data, error }
 }
+
+export const getUserPayPalSubscriptionId = async (userId) => {
+  const { data, error } = await supabase
+    .from('subscriptions')
+    .select('paypal_subscription_id')
+    .eq('user_id', userId)
+    .single()
+  return { data, error }
+}
+
+// ============= PAYPAL SUBSCRIPTION FUNCTIONS =============
+export const createPayPalSubscription = async (subscriptionData) => {
+  const { data, error } = await supabase
+    .from('subscriptions')
+    .insert([{
+      ...subscriptionData,
+      provider: 'paypal',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    }])
+    .select()
+  return { data, error }
+}
+
+export const updatePayPalSubscription = async (userId, updates) => {
+  const { data, error } = await supabase
+    .from('subscriptions')
+    .update({
+      ...updates,
+      updated_at: new Date().toISOString()
+    })
+    .eq('user_id', userId)
+    .eq('provider', 'paypal')
+    .select()
+  return { data, error }
+}
+
+export const getPayPalSubscription = async (userId) => {
+  const { data, error } = await supabase
+    .from('subscriptions')
+    .select('*')
+    .eq('user_id', userId)
+    .eq('provider', 'paypal')
+    .single()
+  return { data, error }
+}
+
+export const cancelPayPalSubscription = async (userId) => {
+  const { data, error } = await supabase
+    .from('subscriptions')
+    .update({
+      status: 'cancelled',
+      cancelled_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    })
+    .eq('user_id', userId)
+    .eq('provider', 'paypal')
+    .select()
+  return { data, error }
+}
+
+export const storePayPalSubscriptionData = async (userId, paypalData) => {
+  const subscriptionData = {
+    user_id: userId,
+    provider: 'paypal',
+    paypal_subscription_id: paypalData.subscriptionId || paypalData.id,
+    plan_id: paypalData.planId,
+    status: paypalData.status || 'active',
+    current_period_start: paypalData.createTime || new Date().toISOString(),
+    current_period_end: paypalData.billingInfo?.nextBillingTime || null,
+    metadata: {
+      paypal_plan_id: paypalData.planId,
+      paypal_subscriber_id: paypalData.subscriber?.payerId,
+      approval_url: paypalData.approvalUrl
+    }
+  }
+
+  // Check if subscription already exists
+  const { data: existing } = await getPayPalSubscription(userId)
+  
+  if (existing) {
+    // Update existing subscription
+    return await updatePayPalSubscription(userId, subscriptionData)
+  } else {
+    // Create new subscription
+    return await createPayPalSubscription(subscriptionData)
+  }
+}
+
+// Backward compatibility function that works with both Stripe and PayPal
+export const getUserSubscription = async (userId) => {
+  // First try to get PayPal subscription
+  const { data: paypalSub, error: paypalError } = await getPayPalSubscription(userId)
+  
+  if (paypalSub && !paypalError) {
+    return { data: paypalSub, error: null }
+  }
+  
+  // Fallback to general subscription query (for Stripe or other providers)
+  return await getSubscription(userId)
+}
