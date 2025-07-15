@@ -2,7 +2,7 @@
   'use strict';
   
   // Widget configuration
-  const WIDGET_BASE_URL = 'https://your-domain.com'; // Replace with your actual domain
+  const WIDGET_BASE_URL = 'https://smart-review-automator.netlify.app'; // Replace with your actual domain
   const WIDGET_VERSION = '1.0.0';
   
   // Find all widget containers on the page
@@ -60,15 +60,21 @@
     
     // Add styles
     const styles = `
-      .smart-review-widget {
-        max-width: 400px;
-        padding: 20px;
-        border: 1px solid #e0e0e0;
-        border-radius: 8px;
-        font-family: Arial, sans-serif;
-        background: white;
-        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-      }
+  .smart-review-widget {
+    max-width: 400px;
+    padding: 20px;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    font-family: Arial, sans-serif;
+    background: white;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    z-index: 999999999999;
+  }
+`;
+
       
       .sr-header h3 {
         margin: 0 0 10px 0;
