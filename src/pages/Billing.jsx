@@ -44,6 +44,18 @@ const Billing = () => {
     }
   }
 
+  const handleDebugStripe = async () => {
+    try {
+      const response = await fetch('/.netlify/functions/debug-stripe')
+      const debug = await response.json()
+      console.log('🔍 Stripe Debug Info:', debug)
+      toast.success('Debug info logged to console')
+    } catch (error) {
+      console.error('Debug failed:', error)
+      toast.error('Debug failed: ' + error.message)
+    }
+  }
+
   const handleManageSubscription = async () => {
     setLoading(true)
     try {
@@ -71,11 +83,16 @@ const Billing = () => {
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <div className="flex justify-between items-center mb-8">
         <h1 className="text-3xl font-bold">Billing</h1>
-        {subscription && (
-          <div className="bg-green-100 text-green-800 px-3 py-1 rounded-full text-sm font-medium">
-            Current Plan: {subscription.plan_name || 'Active'}
-          </div>
-        )}
+        <div className="flex items-center gap-4">
+          <Button onClick={handleDebugStripe} className="bg-yellow-600 hover:bg-yellow-700">
+            Debug Stripe
+          </Button>
+          {subscription && (
+            <div className="bg-green-100 text-green-800 px-3 py-1 rounded-full text-sm font-medium">
+              Current Plan: {subscription.plan_name || 'Active'}
+            </div>
+          )}
+        </div>
       </div>
 
       {subscriptionLoading ? (

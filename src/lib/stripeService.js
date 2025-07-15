@@ -58,6 +58,12 @@ export const PRICING_PLANS = {
 // Create Stripe Checkout Session
 export const createCheckoutSession = async (priceId, userId, userEmail) => {
   try {
+    console.log('🔄 Creating checkout session...', { priceId, userId, userEmail })
+    
+    // Add timeout to prevent hanging requests
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 30000) // 30 second timeout
+    
     const response = await fetch('/.netlify/functions/create-checkout-session', {
       method: 'POST',
       headers: {
@@ -69,14 +75,57 @@ export const createCheckoutSession = async (priceId, userId, userEmail) => {
         userEmail,
         successUrl: `${window.location.origin}/dashboard?success=true`,
         cancelUrl: `${window.location.origin}/billing?canceled=true`
-      })
+      }),
+      signal: controller.signal
     })
+    
+    clearTimeout(timeoutId)
 
-    const session = await response.json()
+    console.log('📊 Response status:', response.status, response.statusText)
+
+    // Check if response is ok before parsing JSON
+    if (!response.ok) {
+      let errorMessage = `HTTP ${response.status}: ${response.statusText}`
+      
+      try {
+        // Try to get error details from response
+        const errorText = await response.text()
+        console.error('❌ Error response:', errorText)
+        
+        // Try to parse as JSON if possible
+        try {
+          const errorData = JSON.parse(errorText)
+          errorMessage = errorData.error || errorMessage
+        } catch {
+          // If not JSON, use the text as error message
+          errorMessage = errorText || errorMessage
+        }
+      } catch {
+        // If we can't read the response, use the status
+        console.error('❌ Could not read error response')
+      }
+      
+      throw new Error(`Checkout session creation failed: ${errorMessage}`)
+    }
+
+    // Parse JSON response
+    let session
+    try {
+      session = await response.json()
+    } catch (jsonError) {
+      console.error('❌ Failed to parse JSON response:', jsonError)
+      throw new Error('Invalid response from server. Please try again.')
+    }
     
     if (session.error) {
       throw new Error(session.error)
     }
+
+    if (!session.id) {
+      throw new Error('Invalid session response - missing session ID')
+    }
+
+    console.log('✅ Checkout session created:', session.id)
 
     const stripe = await stripePromise
     const { error } = await stripe.redirectToCheckout({
@@ -87,7 +136,7 @@ export const createCheckoutSession = async (priceId, userId, userEmail) => {
       throw new Error(error.message)
     }
   } catch (error) {
-    console.error('Stripe checkout error:', error)
+    console.error('❌ Stripe checkout error:', error)
     throw error
   }
 }
@@ -95,6 +144,12 @@ export const createCheckoutSession = async (priceId, userId, userEmail) => {
 // Create Customer Portal Session
 export const createCustomerPortalSession = async (customerId) => {
   try {
+    console.log('🔄 Creating customer portal session...', { customerId })
+    
+    // Add timeout to prevent hanging requests
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 30000) // 30 second timeout
+    
     const response = await fetch('/.netlify/functions/create-portal-session', {
       method: 'POST',
       headers: {
@@ -103,18 +158,60 @@ export const createCustomerPortalSession = async (customerId) => {
       body: JSON.stringify({
         customerId,
         returnUrl: `${window.location.origin}/billing`
-      })
+      }),
+      signal: controller.signal
     })
+    
+    clearTimeout(timeoutId)
 
-    const session = await response.json()
+    console.log('📊 Response status:', response.status, response.statusText)
+
+    // Check if response is ok before parsing JSON
+    if (!response.ok) {
+      let errorMessage = `HTTP ${response.status}: ${response.statusText}`
+      
+      try {
+        // Try to get error details from response
+        const errorText = await response.text()
+        console.error('❌ Error response:', errorText)
+        
+        // Try to parse as JSON if possible
+        try {
+          const errorData = JSON.parse(errorText)
+          errorMessage = errorData.error || errorMessage
+        } catch {
+          // If not JSON, use the text as error message
+          errorMessage = errorText || errorMessage
+        }
+      } catch {
+        // If we can't read the response, use the status
+        console.error('❌ Could not read error response')
+      }
+      
+      throw new Error(`Portal session creation failed: ${errorMessage}`)
+    }
+
+    // Parse JSON response
+    let session
+    try {
+      session = await response.json()
+    } catch (jsonError) {
+      console.error('❌ Failed to parse JSON response:', jsonError)
+      throw new Error('Invalid response from server. Please try again.')
+    }
     
     if (session.error) {
       throw new Error(session.error)
     }
 
+    if (!session.url) {
+      throw new Error('Invalid session response - missing portal URL')
+    }
+
+    console.log('✅ Portal session created, redirecting...')
     window.location.href = session.url
   } catch (error) {
-    console.error('Customer portal error:', error)
+    console.error('❌ Customer portal error:', error)
     throw error
   }
 }
