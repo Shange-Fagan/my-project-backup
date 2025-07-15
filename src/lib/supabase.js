@@ -42,6 +42,43 @@ export const updateUserProfile = async (updates) => {
   return { data, error }
 }
 
+export const updateUserPassword = async (password) => {
+  const { data, error } = await supabase.auth.updateUser({
+    password
+  })
+  return { data, error }
+}
+
+export const deleteUserAccount = async () => {
+  // First get the current user
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: { message: 'No user found' } }
+
+  try {
+    // Call the Netlify function to delete the user account
+    const response = await fetch('/.netlify/functions/delete-user-account', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        userId: user.id
+      })
+    })
+
+    const result = await response.json()
+    
+    if (!response.ok) {
+      throw new Error(result.error || 'Failed to delete account')
+    }
+
+    return { error: null }
+  } catch (error) {
+    console.error('Account deletion error:', error)
+    return { error }
+  }
+}
+
 // ============= BUSINESS FUNCTIONS =============
 export const createBusiness = async (businessData) => {
   const { data, error } = await supabase
@@ -279,5 +316,14 @@ export const updateSubscription = async (subscriptionId, updates) => {
     .update(updates)
     .eq('id', subscriptionId)
     .select()
+  return { data, error }
+}
+
+export const getUserStripeCustomerId = async (userId) => {
+  const { data, error } = await supabase
+    .from('subscriptions')
+    .select('stripe_customer_id')
+    .eq('user_id', userId)
+    .single()
   return { data, error }
 }
